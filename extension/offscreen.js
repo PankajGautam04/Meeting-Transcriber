@@ -4,6 +4,7 @@
 
 let mediaStream = null;
 let mediaRecorder = null;
+let audioContext = null;
 let isCapturing = false;
 
 // === Message Handler ===
@@ -40,6 +41,12 @@ async function startCapture(streamId) {
 
         isCapturing = true;
 
+        // === IMPORTANT: Play tab audio back through speakers ===
+        // tabCapture intercepts audio, so we must route it back to output
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        source.connect(audioContext.destination);
+
         // Record tab audio in chunks
         mediaRecorder = new MediaRecorder(mediaStream, {
             mimeType: 'audio/webm;codecs=opus',
@@ -73,7 +80,7 @@ async function startCapture(streamId) {
         // 250ms chunks for low-latency streaming
         mediaRecorder.start(250);
 
-        console.log('[Offscreen] Tab audio capture started');
+        console.log('[Offscreen] Tab audio capture started (with speaker playback)');
         chrome.runtime.sendMessage({ type: 'OFFSCREEN_STARTED' });
     } catch (err) {
         console.error('[Offscreen] Error starting capture:', err);
@@ -91,6 +98,11 @@ function stopCapture() {
     if (mediaStream) {
         mediaStream.getTracks().forEach((track) => track.stop());
         mediaStream = null;
+    }
+
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
     }
 
     mediaRecorder = null;
